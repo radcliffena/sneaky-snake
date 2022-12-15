@@ -92,22 +92,29 @@ class Player {
 
 		if (this.isReverseMove()) {
 			// check if reverse is available
-			if (this.sneakCount > 0) 
-			{
+			if (this.sneakCount > 0) {
 				// valid reversaL
 				this.currentDirection = this.requestedDirection;
 				this.sneakCount--;
 				// figure out reversal
 
-				// reverse sort our body segments
-				let reverseSegments  = [];
-				for(let i = this.segments.length - 1; i == 0; i--) {
-					reverseSegments.push(this.segments[i]);
-				}
-				this.segments = reverseSegments;
+				let headX = this.head.x;
+				let headY = this.head.y;
 
-				// flip head and tail positions
-				
+				/** @type {Segment} */
+				//@ts-ignore
+
+				let tail = this.segments.pop();
+
+				this.segments = this.segments.reverse();
+
+				this.head.x = tail.x;
+				this.head.y = tail.y;
+
+				tail.x = headX;
+				tail.y = headY;
+
+				this.segments.push(tail);
 			}
 		} else {
 			this.currentDirection = this.requestedDirection;
@@ -179,13 +186,20 @@ class Player {
 		});
 	}
 
-	grow(growBy) {
-		for (let i = 0; i < growBy; i++) {
+	wireupEvents() {}
+
+	/**
+	 *
+	 * @param {Food} food
+	 */
+
+	grow(food) {
+		for (let i = 0; i < food.growBy; i++) {
 			this.segments.push(
 				new Segment(this.head.x, this.head.y, "lime", this.ctx)
 			);
 		}
-		this.sneakCount++;
+		this.sneakCount += food.sneakAttempts;
 	}
 }
 
@@ -231,34 +245,66 @@ class Food {
 		this.radius = game.gridSize / 2;
 		this.color = "red";
 		this.growBy = 1;
+		this.sneakAttempts = 0;
 		this.isEaten = true;
 	}
 
-	spawn() {
+	/**
+	 * @param {Array<Player>} [players]
+	 * @param {Array<Food>} [food]
+	 */
+	spawn(players, food) {
 		// reset eaten state
 		this.isEaten = false;
 
-		let foodType = Math.floor(Math.random() * 3 + 1);
+		let foodType = Math.floor(Math.random() * 8 + 1);
 		switch (foodType) {
 			case 1:
 				this.color = "red";
 				this.growBy = 1;
 				break;
 			case 2:
+			case 3:
+			case 4:
 				this.color = "blue";
 				this.growBy = 2;
+				this.sneakAttempts = 1;
 				break;
-			case 3:
 				this.color = "gold";
 				this.growBy = 3;
+				this.sneakAttempts = 2;
 				break;
 		}
 
 		let xGridMaxValue = canvas.width / game.gridSize;
 		let yGridMaxValue = canvas.height / game.gridSize;
-
 		let randomX = Math.floor(Math.random() * xGridMaxValue);
 		let randomY = Math.floor(Math.random() * yGridMaxValue);
+
+		const MAX_TRIES = 10;
+		let tryCount = 1;
+		do {
+			let isOverlapping = false;
+
+			players?.forEach((p) => {
+				if (p.head.x == randomX && p.head.y == randomY) {
+					isOverlapping = true;
+				}
+				if (p.segments.some((s) => s.x == randomX && s.y == randomY)) {
+					isOverlapping = true;
+				}
+			});
+
+			if (isOverlapping == false) {
+				isOverlapping =
+					food?.some((f) => f.x == randomX && f.y == randomY) ??
+					false;
+			}
+
+			if (isOverlapping == false) {
+				tryCount = MAX_TRIES;
+			}
+		} while (tryCount < MAX_TRIES);
 
 		this.x = randomX * game.gridSize;
 		this.y = randomY * game.gridSize;
@@ -303,7 +349,7 @@ function checkIfFoodIsConsumed(players, food) {
 				console.log("food is eaten");
 				// food is eaten
 				f.isEaten = true;
-				p.grow(f.growBy);
+				p.grow(f);
 			}
 		});
 	});
